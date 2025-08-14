@@ -6,21 +6,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // MongoDB connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://your-user:your-password@cluster0.xxxxx.mongodb.net/willboxd?retryWrites=true&w=majority';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://willem:6hg43jywisf19cAd@willboxd.1vhzjwn.mongodb.net/willboxd?retryWrites=true&w=majority&appName=Willboxd';
 let db;
-
-// Connect to MongoDB
-async function connectToMongoDB() {
-  try {
-    const client = await MongoClient.connect(MONGODB_URI);
-    console.log('✅ Connected to MongoDB Atlas');
-    db = client.db('willboxd');
-  } catch (error) {
-    console.error('❌ MongoDB connection failed:', error);
-  }
-}
-
-connectToMongoDB();
 
 app.use(cors());
 app.use(express.json());
@@ -34,6 +21,10 @@ app.get('/', (req, res) => {
 // Get all comments for a specific media item
 app.get('/api/comments/:mediaTitle', async (req, res) => {
   try {
+    if (!db) {
+      return res.status(500).json({ error: 'Database not ready' });
+    }
+    
     const mediaTitle = decodeURIComponent(req.params.mediaTitle);
     const comments = await db.collection('comments')
       .find({ mediaTitle })
@@ -49,6 +40,10 @@ app.get('/api/comments/:mediaTitle', async (req, res) => {
 // Add a new comment
 app.post('/api/comments', async (req, res) => {
   try {
+    if (!db) {
+      return res.status(500).json({ error: 'Database not ready' });
+    }
+    
     const { mediaTitle, author, text } = req.body;
     
     if (!mediaTitle || !author || !text) {
@@ -67,7 +62,7 @@ app.post('/api/comments', async (req, res) => {
       id: Date.now().toString()
     };
 
-    const result = await db.collection('comments').insertOne(newComment);
+    await db.collection('comments').insertOne(newComment);
     console.log('💬 New comment added:', { mediaTitle, author });
     
     res.json(newComment);
@@ -77,19 +72,31 @@ app.post('/api/comments', async (req, res) => {
   }
 });
 
-// Delete a comment (optional moderation)
-app.delete('/api/comments/:id', async (req, res) => {
+// Connect to MongoDB and THEN start the server
+async function startServer() {
   try {
-    const commentId = req.params.id;
-    await db.collection('comments').deleteOne({ id: commentId });
-    res.json({ success: true });
+    console.log('🔌 Connecting to MongoDB...');
+    const client = await MongoClient.connect(MONGODB_URI);
+    console.log('✅ Connected to MongoDB Atlas');
+    
+    db = client.db('willboxd');
+    console.log('📁 Database selected: willboxd');
+    
+    // Test the connection
+    await db.admin().ping();
+    console.log('🏓 Database ping successful');
+    
+    // Now start the server
+    app.listen(PORT, () => {
+      console.log(`🚀 Willboxd server running on port ${PORT}`);
+      console.log(`📊 MongoDB Atlas ready for comments`);
+    });
+    
   } catch (error) {
-    console.error('Error deleting comment:', error);
-    res.status(500).json({ error: 'Failed to delete comment' });
+    console.error('❌ Failed to start server:', error);
+    process.exit(1);
   }
-});
+}
 
-app.listen(PORT, () => {
-  console.log(`🚀 Willboxd server running on port ${PORT}`);
-  console.log(`📊 Using MongoDB Atlas for persistent storage`);
-});
+// Start everything
+startServer();
