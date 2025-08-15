@@ -59,12 +59,13 @@ app.post('/api/comments', async (req, res) => {
     }
 
     const newComment = {
-      mediaTitle: mediaTitle.trim(),
-      author: author.trim(),
-      text: text.trim(),
-      timestamp: new Date().toISOString(),
-      id: Date.now().toString()
-    };
+    mediaTitle: mediaTitle.trim(),
+    author: author.trim(),
+    text: text.trim(),
+    avatar: req.body.avatar || null, // Add this line
+    timestamp: new Date().toISOString(),
+    id: Date.now().toString()
+};
 
     await db.collection('comments').insertOne(newComment);
     console.log('💬 New comment added:', { mediaTitle, author });
@@ -221,3 +222,4 @@ async function startServer() {
 
 // Start everything
 startServer();
+
