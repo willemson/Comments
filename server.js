@@ -78,7 +78,7 @@ app.post('/api/comments', async (req, res) => {
 });
 
 // ============================================
-// NEW RATINGS API
+// EXISTING RATINGS API (unchanged)
 // ============================================
 
 // Get ratings for a specific media item
@@ -183,6 +183,69 @@ app.post('/api/ratings', async (req, res) => {
   }
 });
 
+// ============================================
+// NEW GUESTBOOK API
+// ============================================
+
+// Get all guestbook entries
+app.get('/api/guestbook', async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(500).json({ error: 'Database not ready' });
+    }
+    
+    const entries = await db.collection('guestbook')
+      .find({})
+      .sort({ timestamp: -1 }) // Newest first
+      .toArray();
+      
+    console.log(`📖 Retrieved ${entries.length} guestbook entries`);
+    res.json(entries);
+  } catch (error) {
+    console.error('Error reading guestbook entries:', error);
+    res.status(500).json({ error: 'Failed to read guestbook entries' });
+  }
+});
+
+// Add a new guestbook entry
+app.post('/api/guestbook', async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(500).json({ error: 'Database not ready' });
+    }
+    
+    const { name, message } = req.body;
+    
+    if (!name || !message) {
+      return res.status(400).json({ error: 'Name and message are required' });
+    }
+
+    if (name.length > 50) {
+      return res.status(400).json({ error: 'Name is too long (max 50 characters)' });
+    }
+
+    if (message.length > 300) {
+      return res.status(400).json({ error: 'Message is too long (max 300 characters)' });
+    }
+
+    const newEntry = {
+      name: name.trim(),
+      message: message.trim(),
+      date: new Date().toISOString().split('T')[0], // YYYY-MM-DD format
+      timestamp: new Date().toISOString(),
+      id: Date.now().toString()
+    };
+
+    await db.collection('guestbook').insertOne(newEntry);
+    console.log('📖 New guestbook entry added:', { name: newEntry.name, messageLength: newEntry.message.length });
+    
+    res.json(newEntry);
+  } catch (error) {
+    console.error('Error adding guestbook entry:', error);
+    res.status(500).json({ error: 'Failed to add guestbook entry' });
+  }
+});
+
 // Connect to MongoDB and THEN start the server
 async function startServer() {
   try {
@@ -201,6 +264,7 @@ async function startServer() {
     try {
       await db.collection('comments').createIndex({ mediaTitle: 1, timestamp: 1 });
       await db.collection('ratings').createIndex({ mediaTitle: 1, userIdentifier: 1 });
+      await db.collection('guestbook').createIndex({ timestamp: -1 }); // New index for guestbook
       console.log('📊 Database indexes created');
     } catch (indexError) {
       console.log('⚠️ Index creation skipped (may already exist)');
@@ -211,6 +275,7 @@ async function startServer() {
       console.log(`🚀 Willboxd server running on port ${PORT}`);
       console.log(`💬 Comments API ready at /api/comments`);
       console.log(`⭐ Ratings API ready at /api/ratings`);
+      console.log(`📖 Guestbook API ready at /api/guestbook`);
       console.log(`📊 MongoDB Atlas connected and ready`);
     });
     
@@ -222,4 +287,3 @@ async function startServer() {
 
 // Start everything
 startServer();
-
